@@ -19,15 +19,25 @@ private class Container(T)
 		}
 	}
 
+	/// Executes a method, automatically resolving any required parameters.
+	/// Params:
+	///   member = The name of the member to execute.
+	///   type = The object to call the method on.
 	auto execute(string member, Type)(Type type)
 	if (Parameters!(__traits(getMember, Type, member)).length == 0)
 	{
+		cast(void) type;
 		return __traits(getMember, type, member)();
 	}
 
+	/// Executes a method, automatically resolving any required parameters.
+	/// Params:
+	///   member = The name of the member to execute.
+	///   type = The object to call the method on.
 	auto execute(string member, Type)(Type type)
 	if (Parameters!(__traits(getMember, Type, member)).length > 0)
 	{
+		cast(void) type;
 		Tuple!(int) parameters;
 		static foreach (i, parameter; Parameters!(__traits(getMember, Type, member)))
 		{

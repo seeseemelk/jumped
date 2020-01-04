@@ -1,0 +1,15 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/jumped
+jumped.so
+jumped.dylib
+jumped.dll
+jumped.a
+jumped.lib
+jumped-test-*
+*.exe
+*.o
+*.obj
+*.lst

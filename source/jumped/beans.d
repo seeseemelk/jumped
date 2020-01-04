@@ -46,18 +46,21 @@ private class Container(T)
 		return __traits(getMember, type, member)(parameters.expand);
 	}
 
+	/// Resolve a types and returns an instance of that type.
 	Type resolve(Type)()
 	if (is(Type == T))
 	{
 		return new T();
 	}
 
+	/// Resolve a types and returns an instance of that type.
 	Type resolve(Type)()
 	if (!is(Type == T) && HasBeanFor!(T, Type))
 	{
 		return resolve!(T, Type);
 	}
 
+	/// Resolve a types and returns an instance of that type.
 	Type resolve(Factory, Type)()
 	{
 		static foreach (member; getFunctionMembers!(Factory))
@@ -84,6 +87,10 @@ private class Container(T)
 		else static if (is(Type == class))
 		{
 			static immutable HasBeanFor = true;
+		}
+		else
+		{
+			static assert(0, PrintCompileError!("Could not resolve bean " ~ Type.stringof));
 		}
 	}
 
@@ -113,7 +120,7 @@ private class Container(T)
 	}
 }
 
-/// Starts the application
+/// Starts the application.
 /// Params:
 ///   T = The startup class
 void jumpStart(T)()
@@ -219,4 +226,37 @@ unittest
 
 	jumpStart!TestClass;
 	assert(calledWithValue == 5, "Expected a value of 5, but got " ~ calledWithValue.to!string);
+}
+
+
+@("@bean methods can be found from child beans")
+unittest
+{
+	import std.conv : to;
+	static int calledWithValue;
+
+	static struct TargetValue
+	{
+		int value;
+	}
+
+	static class ChildClass
+	{
+		@bean private TargetValue getTargetValue()
+		{
+			return TargetValue(4);
+		}
+	}
+
+	static class TestClass
+	{
+		@bean private ChildClass getChild()
+		{
+			return new ChildClass;
+		}
+	}
+
+	auto container = new Container!TestClass;
+	const value = container.resolve!TargetValue;
+	assert(value.value == 4);
 }

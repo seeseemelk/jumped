@@ -4,4 +4,5 @@ module jumped.attributes;
 /// instantiated as a bean.
 struct bean; // @suppress(dscanner.style.phobos_naming_convention)
 
+/// An annotation that specifies that the given
 struct startup; // @suppress(dscanner.style.phobos_naming_convention)

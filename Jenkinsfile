@@ -5,19 +5,19 @@ pipeline {
       parallel {
         stage('DMD') {
           steps {
-            sh 'dmd test --compiler=dmd'
+            sh 'dub test --compiler=dmd'
           }
         }
 
         stage('GDC') {
           steps {
-            sh 'dmd test --compiler=gdc'
+            sh 'dub test --compiler=gdc'
           }
         }
 
         stage('LDC') {
           steps {
-            sh 'dmd test --compiler=ldc'
+            sh 'dub test --compiler=ldc'
           }
         }
 

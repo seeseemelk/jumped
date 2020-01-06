@@ -9,12 +9,6 @@ pipeline {
           }
         }
 
-        stage('GDC') {
-          steps {
-            sh 'dub test --compiler=gdc'
-          }
-        }
-
         stage('LDC') {
           steps {
             sh 'dub test --compiler=ldc'

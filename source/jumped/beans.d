@@ -286,9 +286,6 @@ unittest
 @("@bean methods can be found from child beans")
 unittest
 {
-	import std.conv : to;
-	static int calledWithValue;
-
 	static struct TargetValue
 	{
 		int value;

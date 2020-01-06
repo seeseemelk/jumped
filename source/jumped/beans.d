@@ -228,7 +228,7 @@ unittest
 	assert(calledWithValue == 5, "Expected a value of 5, but got " ~ calledWithValue.to!string);
 }
 
-
+/*
 @("@bean methods can be found from child beans")
 unittest
 {
@@ -260,3 +260,4 @@ unittest
 	const value = container.resolve!TargetValue;
 	assert(value.value == 4);
 }
+*/

@@ -1,5 +1,5 @@
 name "jumped"
-description "A minimal D application."
+description "An Inversion of Control framework for D, similar to Spring"
 authors "Sebastiaan de Schaetzen"
 copyright "Copyright © 2020, Sebastiaan de Schaetzen"
 license "Apache"

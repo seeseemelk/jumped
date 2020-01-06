@@ -5,17 +5,123 @@ import jumped.attributes;
 import jumped.errors;
 import std.traits;
 import std.typecons;
+import std.meta;
+import std.algorithm;
+
+private struct BeanInfo(alias FactoryMethod)
+{
+	alias Bean = ReturnType!FactoryMethod;
+	static immutable string methodName = __traits(identifier, FactoryMethod);
+	alias Parent = __traits(parent, FactoryMethod);
+
+	static if (isScalarType!bean)
+	{
+		alias isAnnotatedWith(Annotation) = Alias!false;
+		alias getAnnotations(Annotation) = AliasSeq!();
+	}
+	else
+	{
+		alias isAnnotatedWith(Annotation) = hasUDA!(bean, Annotation);
+		alias getAnnotations(Annotation) = getUDAs!(bean, Annotation);
+	}
+}
 
 private class Container(T)
 {
+	alias beans = DiscoverBeans!T;
+	alias DiscoverBeans(Type) = AliasSeq!(BeanInfo!createRootBean, AllBeansAccessableBy!(BeanInfo!createRootBean));
+
+	private T createRootBean()
+	{
+		return new T();
+	}
+
+	private template AllBeansAccessableBy(Type...)
+	{
+		static if (Type.length == 1)
+		{
+			alias beans = BeansDirectlyAccessableBy!(Type[0].Bean);
+			static if (beans.length == 0)
+			{
+				alias AllBeansAccessableBy = AliasSeq!();
+			}
+			else
+			{
+				alias AllBeansAccessableBy = AliasSeq!(
+					beans,
+					AllBeansAccessableBy!beans
+				);
+			}
+		}
+		else
+		{
+			alias AllBeansAccessableBy = AliasSeq!(
+				AllBeansAccessableBy!(Type[0]),
+				AllBeansAccessableBy!(Type[1..$])
+			);
+		}
+	}
+
+	private template BeansDirectlyAccessableBy(Type)
+	{
+		static if (!isScalarType!Type && getSymbolsByUDA!(Type, bean).length > 0)
+			alias BeansDirectlyAccessableBy = AliasSeq!(MapReturnTypes!(getSymbolsByUDA!(Type, bean)));
+		else
+			alias BeansDirectlyAccessableBy = AliasSeq!();
+	}
+
+	private template MapReturnTypes(Values...)
+	{
+		static if (Values.length == 1)
+		{
+			alias MapReturnTypes = Alias!(BeanInfo!(Values[0]));
+		}
+		else
+		{
+			alias MapReturnTypes = AliasSeq!(
+				MapReturnTypes!(Values[0]),
+				MapReturnTypes!(Values[1..$])
+			);
+		}
+	}
+
+	template FindAnnotatedMembers(Annotation)
+	{
+		alias FindAnnotatedMembers = FindAnnotatedMembersInBeans!(Annotation, beans);
+	}
+
+	private template FindAnnotatedMembersInBeans(Annotation, Beans...)
+	{
+		static if (Beans.length == 1)
+		{
+			alias bean = Beans[0].Bean;
+			static if (isScalarType!(bean))
+				alias FindAnnotatedMembersInBeans = AliasSeq!();
+			else
+				alias FindAnnotatedMembersInBeans = AliasSeq!(getSymbolsByUDA!(bean, Annotation));
+		}
+		else static if (Beans.length > 1)
+		{
+			alias FindAnnotatedMembersInBeans = AliasSeq!(
+				FindAnnotatedMembersInBeans!(Annotation, Beans[0]),
+				FindAnnotatedMembersInBeans!(Annotation, Beans[1..$])
+			);
+		}
+		else
+		{
+			alias FindAnnotatedMembersInBeans = AliasSeq!();
+		}
+	}
+
 	void executeStartups()
 	{
-		static foreach (member; getMembers!T)
+		static foreach (member; FindAnnotatedMembers!startup)
 		{
-			static if (hasUDA!(T, member, startup))
-			{
-				execute!(member)(resolve!T);
-			}
+			alias Type = __traits(parent, member);
+			enum method = __traits(identifier, member);
+			pragma(msg, "@startup: " ~ Type.stringof ~ "#" ~ method);
+			Type object = resolve!Type;
+			execute!method(object);
 		}
 	}
 
@@ -50,72 +156,21 @@ private class Container(T)
 	Type resolve(Type)()
 	if (is(Type == T))
 	{
-		return new T();
+		return createRootBean();
 	}
 
 	/// Resolve a types and returns an instance of that type.
 	Type resolve(Type)()
-	if (!is(Type == T) && HasBeanFor!(T, Type))
+	if (!is(Type == T))
 	{
-		return resolve!(T, Type);
-	}
-
-	/// Resolve a types and returns an instance of that type.
-	Type resolve(Factory, Type)()
-	{
-		static foreach (member; getFunctionMembers!(Factory))
+		static foreach (bean; beans)
 		{
-			static if (hasUDA!(Factory, member, bean)
-					&& is(ReturnType!(__traits(getMember, Factory, member)) == Type))
+			static if (is(bean.Bean == Type))
 			{
-				return execute!(member)(resolve!Factory);
+				pragma(msg, "@bean: " ~ bean.Parent.stringof ~ "#" ~ bean.methodName);
+				bean.Parent parent = resolve!(bean.Parent);
+				return execute!(bean.methodName)(parent);
 			}
-		}
-	}
-
-	private template HasBeanFor(Type)
-	{
-		alias HasBeanFor = HasBeanFor!(T, Type);
-	}
-
-	private template HasBeanFor(Factory, Type)
-	{
-		static if (HasBeanFromMembers!(Factory, Type, getFunctionMembers!(Factory)) == true)
-		{
-			alias HasBeanFor = HasBeanFromMembers!(Factory, Type, getFunctionMembers!(Factory));
-		}
-		else static if (is(Type == class))
-		{
-			static immutable HasBeanFor = true;
-		}
-		else
-		{
-			static assert(0, PrintCompileError!("Could not resolve bean " ~ Type.stringof));
-		}
-	}
-
-	private template HasBeanFromMembers(Factory, Type, string[] members)
-	{
-		static if (members.length == 0)
-		{
-			static immutable HasBeanFromMembers = false;
-		}
-		else static if (hasUDA!(Factory, members[0], bean)
-			&& is(ReturnType!(__traits(getMember, Factory, members[0])) == Type))
-		{
-			static if (HasBeanFromMembers!(Factory, Type, members[1 .. $]) == true)
-			{
-				static immutable message = "Found multiple beans for " ~ Type.stringof;
-				static assert(0, PrintCompileError!(message));
-			}
-			else
-			{
-				static immutable HasBeanFromMembers = true;
-			}
-		}
-		else
-		{
-			alias HasBeanFromMembers = HasBeanFromMembers!(Factory, Type, members[1 .. $]);
 		}
 	}
 }
@@ -137,7 +192,7 @@ unittest
 	static class TestClass
 	{
 		@startup
-		private void func()
+		private void startupMethod()
 		{
 			called = true;
 		}
@@ -228,7 +283,6 @@ unittest
 	assert(calledWithValue == 5, "Expected a value of 5, but got " ~ calledWithValue.to!string);
 }
 
-/*
 @("@bean methods can be found from child beans")
 unittest
 {
@@ -240,7 +294,7 @@ unittest
 		int value;
 	}
 
-	static class ChildClass
+	static class ClassC
 	{
 		@bean private TargetValue getTargetValue()
 		{
@@ -248,16 +302,23 @@ unittest
 		}
 	}
 
-	static class TestClass
+	static class ClassB
 	{
-		@bean private ChildClass getChild()
+		@bean private ClassC getTargetValue()
 		{
-			return new ChildClass;
+			return new ClassC;
 		}
 	}
 
-	auto container = new Container!TestClass;
+	static class ClassA
+	{
+		@bean private ClassB getChild()
+		{
+			return new ClassB;
+		}
+	}
+
+	auto container = new Container!ClassA;
 	const value = container.resolve!TargetValue;
 	assert(value.value == 4);
 }
-*/

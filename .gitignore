@@ -13,3 +13,5 @@ jumped-test-*
 *.o
 *.obj
 *.lst
+*.s
+*.a

@@ -4,27 +4,65 @@ import std.traits;
 import std.algorithm.searching;
 import std.meta;
 
-template HasRecursiveUDA(UDA, Symbol)
+/// Checks if a symbol has a specified attribute.
+/// If the attribute cannot be found, it checks for attributes
+/// on the original attribute type itself. It will keep doing this
+/// until it cannot found anymore attributes.
+template hasRecursiveUDA(alias UDA, alias symbol)
 {
-	static if (hasUDA!(Symbol, UDA))
+	static if (hasUDA!(symbol, UDA))
 	{
-		alias HasRecursiveUDA = Alias!true;
+		alias hasRecursiveUDA = Alias!true;
 	}
 	else
 	{
-		alias HasRecursiveUDA = HasRecursiveUDA!(UDA, __traits(allMembers, Symbol));
+		alias hasRecursiveUDA = hasRecursiveUDA!(UDA, __traits(getAttributes, symbol));
 	}
 }
 
-template HasRecursiveUDAFrom(UDA, Symbol, Members...)
+private template hasRecursiveUDA(alias UDA)
 {
-	pragma(msg, Members);
+	alias hasRecursiveUDA = Alias!false;
 }
 
+@("HasRecursiveUDA finds all base annotation")
 unittest
 {
-	struct Hello
-	{
-		
-	}
+	struct annotationA; // @suppress(dscanner.style.phobos_naming_convention)
+
+	@annotationA
+	struct annotationB; // @suppress(dscanner.style.phobos_naming_convention)
+
+	@annotationB
+	struct Hello;
+
+	static assert(hasRecursiveUDA!(annotationB, Hello) == true);
+}
+
+@("HasRecursiveUDA finds all indirect annotation")
+unittest
+{
+	struct annotationA; // @suppress(dscanner.style.phobos_naming_convention)
+
+	@annotationA
+	struct annotationB; // @suppress(dscanner.style.phobos_naming_convention)
+
+	@annotationB
+	struct Hello;
+
+	static assert(hasRecursiveUDA!(annotationA, Hello) == true);
+}
+
+
+@("HasRecursiveUDA is false when the attribute cannot be found")
+unittest
+{
+	struct annotationA; // @suppress(dscanner.style.phobos_naming_convention)
+
+	struct annotationB; // @suppress(dscanner.style.phobos_naming_convention)
+
+	@annotationB
+	struct Hello;
+
+	static assert(hasRecursiveUDA!(annotationA, Hello) == false);
 }

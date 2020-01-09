@@ -21,7 +21,7 @@ private struct BeanInfo(alias FactoryMethod)
 	}
 	else
 	{
-		alias isAnnotatedWith(Annotation) = hasUDA!(bean, Annotation);
+		alias isAnnotatedWith(Annotation) = hasAnnotation!(bean, Annotation);
 		alias getAnnotations(Annotation) = getUDAs!(bean, Annotation);
 	}
 }
@@ -64,8 +64,8 @@ private class Container(T)
 
 	private template BeansDirectlyAccessableBy(Type)
 	{
-		static if (!isScalarType!Type && getSymbolsByUDA!(Type, bean).length > 0)
-			alias BeansDirectlyAccessableBy = AliasSeq!(MapReturnTypes!(getSymbolsByUDA!(Type, bean)));
+		static if (!isScalarType!Type && getMembersByAnnotation!(Type, bean).length > 0)
+			alias BeansDirectlyAccessableBy = AliasSeq!(MapReturnTypes!(getMembersByAnnotation!(Type, bean)));
 		else
 			alias BeansDirectlyAccessableBy = AliasSeq!();
 	}
@@ -318,4 +318,23 @@ unittest
 	auto container = new Container!ClassA;
 	const value = container.resolve!TargetValue;
 	assert(value.value == 4);
+}
+
+@("@bean methods can be indirectly annotated")
+unittest
+{
+	@bean
+	struct annotation;
+
+	static class Class
+	{
+		@annotation private int getValue()
+		{
+			return 5;
+		}
+	}
+
+	auto container = new Container!Class;
+	const value = container.resolve!int;
+	assert(value == 5);
 }

@@ -1,1 +1,6 @@
 name "web"
+description "hello"
+targetType "library"
+configuration "unittest" {
+        dependency "silly" version="~>1.0.0"
+}

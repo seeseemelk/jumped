@@ -15,3 +15,5 @@ jumped-test-*
 *.lst
 *.s
 *.a
+jumped-*-library
+jumped-*-unittest

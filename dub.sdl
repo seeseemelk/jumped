@@ -3,6 +3,10 @@ description "An Inversion of Control framework for D, similar to Spring"
 authors "Sebastiaan de Schaetzen"
 copyright "Copyright © 2020, Sebastiaan de Schaetzen"
 license "Apache"
-dependency "silly" version="~>1.0.0"
 targetType "library"
-subProject "./web/"
+
+configuration "unittest" {
+        dependency "silly" version="~>1.0.0"
+}
+
+subPackage "./web/"

@@ -1,82 +1,149 @@
 module jumped.introspection;
 
 import std.traits;
-import std.traits : hasUDATrait = hasUDA;
 import std.algorithm.searching;
+import std.meta;
 
-/// Gets a list of all members of a type.
-string[] getMembers(T)() pure
+/// Checks if a symbol has a specified attribute.
+/// If the attribute cannot be found, it checks for attributes
+/// on the original attribute type itself. It will keep doing this
+/// until it cannot found anymore attributes.
+template hasAnnotation(alias uda, alias symbol)
 {
-	static immutable members = [__traits(allMembers, T)];
-	static immutable objectMembers = [__traits(allMembers, Object)];
-	string[] typeMembers;
-	static foreach (member; members)
+	static if (hasUDA!(symbol, uda))
 	{
-		static if (member != "this" && !objectMembers.findAmong(member))
-		{
-			typeMembers ~= member;
-		}
+		alias hasAnnotation = Alias!true;
 	}
-	return typeMembers;
+	else
+	{
+		alias hasAnnotation = hasAnnotation!(uda, __traits(getAttributes, symbol));
+	}
 }
 
-@("getMembers returns a list of all members except members from Object")
+private template hasAnnotation(alias UDA)
+{
+	alias hasAnnotation = Alias!false;
+}
+
+@("hasAnnotation finds all base annotation")
 unittest
 {
-	class TestClass
-	{
-		private int memberA;
-		void memberB() {}
-	}
+	struct annotationA; // @suppress(dscanner.style.phobos_naming_convention)
 
-	static immutable members = getMembers!TestClass;
-	static assert(members.length == 2);
-	static assert(members[0] == "memberA");
-	static assert(members[1] == "memberB");
+	@annotationA
+	struct annotationB; // @suppress(dscanner.style.phobos_naming_convention)
+
+	@annotationB
+	struct Hello;
+
+	static assert(hasAnnotation!(annotationB, Hello) == true);
 }
 
-/// Gets a list of all members that are functions of a type.
-string[] getFunctionMembers(T)() pure
-{
-	string[] functions;
-	static foreach (member; getMembers!T)
-	{
-		static if (isFunction!(__traits(getMember, T, member)))
-		{
-			functions ~= member;
-		}
-	}
-	return functions;
-}
-
-@("getFunctionMembers returns a list of all members that are functions")
+@("hasAnnotation finds all indirect annotation")
 unittest
 {
-	class TestClass
-	{
-		int memberA;
-		void memberB() {}
-	}
+	struct annotationA; // @suppress(dscanner.style.phobos_naming_convention)
 
-	static immutable members = getFunctionMembers!TestClass;
-	static assert(members.length == 1);
-	static assert(members[0] == "memberB");
+	@annotationA
+	struct annotationB; // @suppress(dscanner.style.phobos_naming_convention)
+
+	@annotationB
+	struct Hello;
+
+	static assert(hasAnnotation!(annotationA, Hello) == true);
 }
 
-/// Checks wether a type has a given UDA.
-template hasUDA(T, string member, UDA)
-{
-	alias hasUDA = hasUDATrait!(__traits(getMember, T, member), UDA);
-}
 
-@("hasUDA should return true if a member has the UDA")
+@("hasAnnotation is false when the annotation cannot be found")
 unittest
 {
-	struct uda1; // @suppress(dscanner.style.phobos_naming_convention)
-	class TestClass
+	struct annotationA; // @suppress(dscanner.style.phobos_naming_convention)
+
+	struct annotationB; // @suppress(dscanner.style.phobos_naming_convention)
+
+	@annotationB
+	struct Hello;
+
+	static assert(hasAnnotation!(annotationA, Hello) == false);
+}
+
+/// Finds all members of a symbol that have a specific annotation, directly or
+/// indirectly. It returns a tuple of the name of each each member that has them
+/// annotation.
+template getMembersByAnnotation(alias symbol, alias uda)
+{
+	alias getMembersByAnnotation = filterSymbolsByAnnotation!(uda, symbol, [__traits(allMembers, symbol)]);
+}
+
+private template filterSymbolsByAnnotation(alias uda, alias symbol, alias members)
+if (members.length > 1)
+{
+	alias filterSymbolsByAnnotation = AliasSeq!(
+		filterSymbolsByAnnotation!(uda, symbol, [members[0]]),
+		filterSymbolsByAnnotation!(uda, symbol, members[1..$])
+	);
+}
+
+private template filterSymbolsByAnnotation(alias uda, alias symbol, alias members)
+if (members.length == 1)
+{
+	alias member = __traits(getMember, symbol, members[0]);
+	static if (hasAnnotation!(uda, member))
 	{
-		@uda1 int a;
+		alias filterSymbolsByAnnotation = Alias!(member);
 	}
-	enum uda = hasUDA!(TestClass, "a", uda1);
-	static assert(uda == true);
+	else
+	{
+		alias filterSymbolsByAnnotation = AliasSeq!();
+	}
+}
+
+@("getSymbolsByAnnotation can find symbols with direct annotation")
+unittest
+{
+	struct annotation; // @suppress(dscanner.style.phobos_naming_convention)
+
+	static class MyClass
+	{
+		@annotation public void someMethod() {}
+
+		public void otherMethod() {}
+	}
+
+	alias annotations = getMembersByAnnotation!(MyClass, annotation);
+	static assert(annotations.length == 1);
+	static assert(__traits(identifier, annotations[0]) == "someMethod");
+}
+
+@("getSymbolsByAnnotation can find symbols with indirect annotation")
+unittest
+{
+	struct annotationA; // @suppress(dscanner.style.phobos_naming_convention)
+
+	@annotationA
+	struct annotationB; // @suppress(dscanner.style.phobos_naming_convention)
+
+	static class MyClass
+	{
+		@annotationB public void someMethod() {}
+
+		public void otherMethod() {}
+	}
+
+	alias annotations = getMembersByAnnotation!(MyClass, annotationA);
+	static assert(annotations.length == 1);
+	static assert(__traits(identifier, annotations[0]) == "someMethod");
+}
+
+@("getSymbolsByAnnotation returns empty tuple if none were found")
+unittest
+{
+	struct annotationA; // @suppress(dscanner.style.phobos_naming_convention)
+	static class MyClass
+	{
+		public void otherMethod() {}
+	}
+
+	alias annotations = getMembersByAnnotation!(MyClass, annotationA);
+	static assert(annotations.length == 0);
 }

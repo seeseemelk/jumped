@@ -144,7 +144,7 @@ private class Container(T)
 	if (Parameters!(__traits(getMember, Type, member)).length > 0)
 	{
 		cast(void) type;
-		Tuple!(int) parameters;
+		Tuple!(Parameters!(__traits(getMember, Type, member))) parameters;
 		static foreach (i, parameter; Parameters!(__traits(getMember, Type, member)))
 		{
 			parameters[i] = resolve!parameter;
@@ -228,39 +228,52 @@ unittest
 	assert(value.value == 5);
 }
 
-@("@bean method can get inversion of control parameters")
+@("@bean method can get injected parameters")
 unittest
 {
 	import std.conv : to;
+	static struct StructValue
+	{
+		string text;
+	}
+
 	static class Value
 	{
 		int value;
+		string text;
 
-		this(int value)
+		this(int value, StructValue structValue)
 		{
 			this.value = value;
+			this.text = structValue.text;
 		}
 	}
 
 	static class TestClass
 	{
-		@bean private Value getBean(int num)
+		@bean private Value getBean(int num, StructValue value)
 		{
-			return new Value(num);
+			return new Value(num, value);
 		}
 
 		@bean private int getNum()
 		{
 			return 5;
 		}
+
+		@bean private StructValue getStructValue()
+		{
+			return StructValue("some text");
+		}
 	}
 
 	auto container = new Container!TestClass;
 	const value = container.resolve!Value;
 	assert(value.value == 5, "Expected a value of 5, but got " ~ value.value.to!string);
+	assert(value.text == "some text", "Expected ths string \"some text\", but got " ~ value.text.to!string);
 }
 
-@("@startup method can have parameters")
+@("@startup method can have a parameter")
 unittest
 {
 	import std.conv : to;

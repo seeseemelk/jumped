@@ -10,7 +10,11 @@ import std.meta;
 /// until it cannot found anymore attributes.
 template hasAnnotation(alias uda, alias symbol)
 {
-	static if (hasUDA!(symbol, uda))
+	static if (!__traits(compiles, __traits(getAttributes, symbol)))
+	{
+		alias hasAnnotation = Alias!false;
+	}
+	else static if (hasUDA!(symbol, uda))
 	{
 		alias hasAnnotation = Alias!true;
 	}
@@ -145,5 +149,25 @@ unittest
 	}
 
 	alias annotations = getMembersByAnnotation!(MyClass, annotationA);
+	static assert(annotations.length == 0);
+}
+
+@("structures can contain third-party symbols with arguments")
+unittest
+{
+	static struct otherAnnotation
+	{
+		string value;
+	}
+
+	static struct myAnnotation;
+
+	static class MyClass
+	{
+		@otherAnnotation("foo")
+		public void methodA() {}
+	}
+
+	alias annotations = getMembersByAnnotation!(MyClass, myAnnotation);
 	static assert(annotations.length == 0);
 }

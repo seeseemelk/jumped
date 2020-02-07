@@ -153,10 +153,13 @@ private class Container(T)
 	}
 
 	/// Resolve a types and returns an instance of that type.
+	private T _rootBean = null;
 	Type resolve(Type)()
 	if (is(Type == T))
 	{
-		return createRootBean();
+		if (_rootBean is null)
+			_rootBean = createRootBean();
+		return _rootBean;
 	}
 
 	/// Resolve a types and returns an instance of that type.
@@ -373,4 +376,40 @@ unittest
 	auto container = new Container!Class;
 	const value = container.resolve!int;
 	assert(value == 5);
+}
+
+@("Startup class should be a singleton")
+unittest
+{
+	static class Class
+	{
+		static int constructed = 0;
+
+		this()
+		{
+			constructed++;
+		}
+
+		@bean
+		private int getInt()
+		{
+			return 0;
+		}
+
+		@bean
+		private float getFloat()
+		{
+			return 0.0f;
+		}
+
+		@bean
+		private double add(int a, float b)
+		{
+			return a + b;
+		}
+	}
+
+	auto container = new Container!Class;
+	container.resolve!double;
+	assert(Class.constructed == 1, "Class was instantiated multiple times");
 }

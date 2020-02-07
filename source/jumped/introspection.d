@@ -24,6 +24,14 @@ template hasAnnotation(alias uda, alias symbol)
 	}
 }
 
+private template hasAnnotation(alias uda, alias symbol, Symbols...)
+{
+	static if (hasAnnotation!(uda, symbol))
+		alias hasAnnotation = Alias!true;
+	else
+		alias hasAnnotation = hasAnnotation!(uda, Symbols);
+}
+
 private template hasAnnotation(alias UDA)
 {
 	alias hasAnnotation = Alias!false;
@@ -170,4 +178,25 @@ unittest
 
 	alias annotations = getMembersByAnnotation!(MyClass, myAnnotation);
 	static assert(annotations.length == 0);
+}
+
+@("methods can have multiple annotations")
+unittest
+{
+	struct annotationA;
+
+	struct annotationB;
+
+	static class MyClass
+	{
+		@annotationA
+		@annotationB
+		private int getValue()
+		{
+			return 5;
+		}
+	}
+
+	alias annotations = getMembersByAnnotation!(MyClass, annotationA);
+	static assert(annotations.length == 1);
 }

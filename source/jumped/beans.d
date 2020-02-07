@@ -351,3 +351,26 @@ unittest
 	const value = container.resolve!int;
 	assert(value == 5);
 }
+
+@("methods can have multiple annotations")
+unittest
+{
+	@bean
+	struct annotationA;
+
+	struct annotationB;
+
+	static class Class
+	{
+		@annotationA
+		@annotationB
+		private int getValue()
+		{
+			return 5;
+		}
+	}
+
+	auto container = new Container!Class;
+	const value = container.resolve!int;
+	assert(value == 5);
+}

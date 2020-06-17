@@ -1,14 +1,19 @@
 /+ dub.sdl:
-     dependency "jumped" version="~0.1.0"
+     dependency "jumped" path=".."
 +/
 import jumped;
 import std.stdio;
 
 private class MyClass
 {
-    @startup void startup()
+    @startup void setUp()
     {
         writeln("Hello, world!");
+    }
+
+    @shutdown void tearDown()
+    {
+        writeln("Goodbye!");
     }
 }
 

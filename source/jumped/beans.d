@@ -113,13 +113,15 @@ private class Container(T)
 		}
 	}
 
-	void executeStartups()
+	/**
+	Executes all methods with a specific annotation.
+	*/
+	void executeAll(Annotation)()
 	{
-		static foreach (member; FindAnnotatedMembers!startup)
+		static foreach (member; FindAnnotatedMembers!Annotation)
 		{
 			alias Type = __traits(parent, member);
 			enum method = __traits(identifier, member);
-			pragma(msg, "@startup: " ~ Type.stringof ~ "#" ~ method);
 			Type object = resolve!Type;
 			execute!method(object);
 		}
@@ -184,7 +186,8 @@ private class Container(T)
 void jumpStart(T)()
 {
 	auto container = new Container!T;
-	container.executeStartups();
+	container.executeAll!startup();
+	container.executeAll!shutdown();
 }
 
 @("@startup method is executed on startup")
@@ -196,6 +199,24 @@ unittest
 	{
 		@startup
 		private void startupMethod()
+		{
+			called = true;
+		}
+	}
+
+	jumpStart!TestClass();
+	assert(called == true);
+}
+
+@("@shutdown method is executed on shutdown")
+unittest
+{
+	static bool called = false;
+
+	static class TestClass
+	{
+		@shutdown
+		private void shutdownMethod()
 		{
 			called = true;
 		}

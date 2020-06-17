@@ -174,7 +174,12 @@ class Container(T)
 		return __traits(getMember, type, member)(parameters.expand);
 	}
 
-	/// Resolve a types and returns an instance of that type.
+	/**
+	Resolve a types and returns an instance of that type.
+
+	This version will detect the root bean, and use special instantiation for
+	this specific bean.
+	*/
 	private T _rootBean = null;
 	Type resolve(Type)()
 	if (is(Type == T))
@@ -184,9 +189,13 @@ class Container(T)
 		return _rootBean;
 	}
 
-	/// Resolve a types and returns an instance of that type.
+	/**
+	Resolve a types and returns an instance of that type.
+
+	Resolves a bean that has an instantiator (a method annotated with `@bean`).
+	*/
 	Type resolve(Type)()
-	if (!is(Type == T))
+	if (!is(Type == T) && hasBeanInstantiator!Type)
 	{
 		static foreach (bean; beans)
 		{
@@ -197,6 +206,58 @@ class Container(T)
 				return execute!(bean.methodName)(parent);
 			}
 		}
+	}
+
+	/**
+	Resolve a types and returns an instance of that type.
+
+	Resolves a bean that does not have an instantiator, but is annotated with
+	`@component`.
+	*/
+	Type resolve(Type)()
+	if (!is(Type == T) && !hasBeanInstantiator!Type && hasAnnotation!(component, Type))
+	{
+		pragma(msg, "@component: " ~ Type.stringof);
+		static if (__traits(hasMember, Type, "__ctor"))
+		{
+			Tuple!(Parameters!(__traits(getMember, Type, "__ctor"))) parameters;
+			static foreach (i, parameter; Parameters!(__traits(getMember, Type, "__ctor")))
+			{
+				parameters[i] = resolve!parameter;
+			}
+			return new Type(parameters.expand);
+		}
+		else
+		{
+			return new Type();
+		}
+
+		//bean.Parent parent = resolve!(bean.Parent);
+		//return execute!(bean.methodName)(parent);
+	}
+
+	/**
+	Resolve a types and returns an instance of that type.
+
+	Catch-all if the bean cannot be found. Will simply cause a compile error.
+	*/
+	template resolve(Type)
+	if (!is(Type == T) && !hasBeanInstantiator!Type && !hasAnnotation!(component, Type))
+	{
+		static assert(0, "Could not resolve bean '" ~ Type.stringof ~ "'");
+	}
+
+	/**
+	Checks if there is a `@bean` instantiator for the given `Type`.
+	*/
+	private template hasBeanInstantiator(Type)
+	{
+		private template isBean(Type, alias bean)
+		{
+			enum isBean = is(bean.Bean == Type);
+		}
+
+		enum hasBeanInstantiator = anySatisfy!(ApplyLeft!(isBean, Type), beans);
 	}
 }
 

@@ -18,6 +18,12 @@ order to get an instance of the bean.
 struct bean; // @suppress(dscanner.style.phobos_naming_convention)
 
 /**
+An annotation that specifies that the given class can be instantiated without
+needing a special method with the `@bean` annotation.
+*/
+struct component; // @suppress(dscanner.style.phobos_naming_convention)
+
+/**
 An annotation that specifies that the given function should be executed when the
 program is started.
 

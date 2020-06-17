@@ -26,6 +26,44 @@ unittest
 	assert(value.value == 5);
 }
 
+@("@component class is automatically instantiated")
+unittest
+{
+	@component
+	static class ValueA
+	{
+		this() {}
+	}
+
+	@component
+	static class ValueB {}
+
+	static class TestClass {}
+
+	auto container = new Container!TestClass;
+	assert(container.resolve!ValueA !is null);
+	assert(container.resolve!ValueB !is null);
+}
+
+@("@component class can have constructor parameters resolved")
+unittest
+{
+	@component
+	static class ValueA {}
+
+	@component
+	static class ValueB
+	{
+		this(ValueA valueA) {}
+	}
+
+	static class TestClass {}
+
+	auto container = new Container!TestClass;
+	assert(container.resolve!ValueA !is null);
+	assert(container.resolve!ValueB !is null);
+}
+
 @("@bean method can get injected parameters")
 unittest
 {

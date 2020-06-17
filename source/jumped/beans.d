@@ -1,3 +1,12 @@
+/**
+This module contains the core of the Jumped framework.
+
+It contains all the required internal functionality in order to detect and
+resolve any dependencies.
+
+For public usage, the main function is `jumpStart`, which will instantiate a
+class, resolve dependencies, and executed `@startup` methods.
+*/
 module jumped.beans;
 
 import jumped.introspection;
@@ -26,7 +35,11 @@ private struct BeanInfo(alias FactoryMethod)
 	}
 }
 
-private class Container(T)
+/**
+A container is a class that can perform dependency resolution at compile-time,
+finding any dependencies through the template parameter.
+*/
+class Container(T)
 {
 	alias beans = DiscoverBeans!T;
 	alias DiscoverBeans(Type) = AliasSeq!(BeanInfo!createRootBean, AllBeansAccessableBy!(BeanInfo!createRootBean));
@@ -115,6 +128,8 @@ private class Container(T)
 
 	/**
 	Executes all methods with a specific annotation.
+	Params:
+		Annotation = The annotation to filter by.
 	*/
 	void executeAll(Annotation)()
 	{
@@ -126,6 +141,11 @@ private class Container(T)
 			execute!method(object);
 		}
 	}
+
+	/*void executeAll(Annotation)()
+	{
+		executeAll!(Annotation, Alias!true)();
+	}*/
 
 	/// Executes a method, automatically resolving any required parameters.
 	/// Params:
@@ -180,257 +200,31 @@ private class Container(T)
 	}
 }
 
-/// Starts the application.
-/// Params:
-///   T = The startup class
+/**
+Starts the application.
+
+It will first create an instance of the application. After the application is
+instantiated, it will resolve any dependencies required to execute all methods
+annotated with `@startup`. Once all `@startup`-methods have finished execution,
+it will execute all `@shutdown`-methods.
+Params:
+	T = The startup class
+*/
 void jumpStart(T)()
 {
 	auto container = new Container!T;
-	container.executeAll!startup();
-	container.executeAll!shutdown();
-}
 
-@("@startup method is executed on startup")
-unittest
-{
-	static bool called = false;
-
-	static class TestClass
+	try
 	{
-		@startup
-		private void startupMethod()
-		{
-			called = true;
-		}
+		container.executeAll!startup();
+		container.executeAll!(shutdownOnSuccess);
 	}
-
-	jumpStart!TestClass();
-	assert(called == true);
-}
-
-@("@shutdown method is executed on shutdown")
-unittest
-{
-	static bool called = false;
-
-	static class TestClass
+	catch (Exception e)
 	{
-		@shutdown
-		private void shutdownMethod()
-		{
-			called = true;
-		}
+		container.executeAll!(shutdownOnFailure);
 	}
-
-	jumpStart!TestClass();
-	assert(called == true);
-}
-
-@("@bean method creates instance")
-unittest
-{
-	static class Value
+	finally
 	{
-		int value;
-
-		this(int value)
-		{
-			this.value = value;
-		}
+		container.executeAll!(shutdown);
 	}
-
-	static class TestClass
-	{
-		@bean private Value createBean()
-		{
-			return new Value(5);
-		}
-	}
-
-	auto container = new Container!TestClass;
-	const value = container.resolve!Value;
-	assert(value.value == 5);
-}
-
-@("@bean method can get injected parameters")
-unittest
-{
-	import std.conv : to;
-	static struct StructValue
-	{
-		string text;
-	}
-
-	static class Value
-	{
-		int value;
-		string text;
-
-		this(int value, StructValue structValue)
-		{
-			this.value = value;
-			this.text = structValue.text;
-		}
-	}
-
-	static class TestClass
-	{
-		@bean private Value getBean(int num, StructValue value)
-		{
-			return new Value(num, value);
-		}
-
-		@bean private int getNum()
-		{
-			return 5;
-		}
-
-		@bean private StructValue getStructValue()
-		{
-			return StructValue("some text");
-		}
-	}
-
-	auto container = new Container!TestClass;
-	const value = container.resolve!Value;
-	assert(value.value == 5, "Expected a value of 5, but got " ~ value.value.to!string);
-	assert(value.text == "some text", "Expected ths string \"some text\", but got " ~ value.text.to!string);
-}
-
-@("@startup method can have a parameter")
-unittest
-{
-	import std.conv : to;
-	static int calledWithValue;
-
-	static class TestClass
-	{
-		@startup private void onStart(int value)
-		{
-			calledWithValue = value;
-		}
-
-		@bean private int getNum()
-		{
-			return 5;
-		}
-	}
-
-	jumpStart!TestClass;
-	assert(calledWithValue == 5, "Expected a value of 5, but got " ~ calledWithValue.to!string);
-}
-
-@("@bean methods can be found from child beans")
-unittest
-{
-	static struct TargetValue
-	{
-		int value;
-	}
-
-	static class ClassC
-	{
-		@bean private TargetValue getTargetValue()
-		{
-			return TargetValue(4);
-		}
-	}
-
-	static class ClassB
-	{
-		@bean private ClassC getTargetValue()
-		{
-			return new ClassC;
-		}
-	}
-
-	static class ClassA
-	{
-		@bean private ClassB getChild()
-		{
-			return new ClassB;
-		}
-	}
-
-	auto container = new Container!ClassA;
-	const value = container.resolve!TargetValue;
-	assert(value.value == 4);
-}
-
-@("@bean methods can be indirectly annotated")
-unittest
-{
-	@bean
-	struct annotation;
-
-	static class Class
-	{
-		@annotation private int getValue()
-		{
-			return 5;
-		}
-	}
-
-	auto container = new Container!Class;
-	const value = container.resolve!int;
-	assert(value == 5);
-}
-
-@("methods can have multiple annotations")
-unittest
-{
-	@bean
-	struct annotationA;
-
-	struct annotationB;
-
-	static class Class
-	{
-		@annotationA
-		@annotationB
-		private int getValue()
-		{
-			return 5;
-		}
-	}
-
-	auto container = new Container!Class;
-	const value = container.resolve!int;
-	assert(value == 5);
-}
-
-@("Startup class should be a singleton")
-unittest
-{
-	static class Class
-	{
-		static int constructed = 0;
-
-		this()
-		{
-			constructed++;
-		}
-
-		@bean
-		private int getInt()
-		{
-			return 0;
-		}
-
-		@bean
-		private float getFloat()
-		{
-			return 0.0f;
-		}
-
-		@bean
-		private double add(int a, float b)
-		{
-			return a + b;
-		}
-	}
-
-	auto container = new Container!Class;
-	container.resolve!double;
-	assert(Class.constructed == 1, "Class was instantiated multiple times");
 }

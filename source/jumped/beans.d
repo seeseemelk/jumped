@@ -135,10 +135,7 @@ class Container(T)
 	{
 		static foreach (member; FindAnnotatedMembers!Annotation)
 		{
-			alias Type = __traits(parent, member);
-			enum method = __traits(identifier, member);
-			Type object = resolve!Type;
-			execute!method(object);
+			execute!(__traits(identifier, member))(resolve!(__traits(parent, member)));
 		}
 	}
 

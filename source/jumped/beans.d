@@ -41,8 +41,9 @@ finding any dependencies through the template parameter.
 */
 class Container(T)
 {
-	alias beans = DiscoverBeans!T;
-	alias DiscoverBeans(Type) = AliasSeq!(BeanInfo!createRootBean, AllBeansAccessableBy!(BeanInfo!createRootBean));
+	private alias beans = DiscoverBeans!T;
+	private alias DiscoverBeans(Type) = AliasSeq!(BeanInfo!createRootBean, AllBeansAccessableBy!(BeanInfo!createRootBean));
+	private T _rootBean = null;
 
 	private T createRootBean()
 	{
@@ -98,7 +99,7 @@ class Container(T)
 		}
 	}
 
-	template FindAnnotatedMembers(Annotation)
+	private template FindAnnotatedMembers(Annotation)
 	{
 		alias FindAnnotatedMembers = FindAnnotatedMembersInBeans!(Annotation, beans);
 	}
@@ -177,7 +178,6 @@ class Container(T)
 	This version will detect the root bean, and use special instantiation for
 	this specific bean.
 	*/
-	private T _rootBean = null;
 	Type resolve(Type)()
 	if (is(Type == T))
 	{
@@ -228,9 +228,6 @@ class Container(T)
 		{
 			return new Type();
 		}
-
-		//bean.Parent parent = resolve!(bean.Parent);
-		//return execute!(bean.methodName)(parent);
 	}
 
 	/**
